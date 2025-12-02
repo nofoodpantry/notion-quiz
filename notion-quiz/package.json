@@ -1,0 +1,12 @@
+{
+  "name": "notion-quiz",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site' && mkdir -p public && cp index.html public/"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.14"
+  }
+}
