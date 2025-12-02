@@ -1,0 +1,19 @@
+{
+
+"name": "notion-quiz-vercel",
+
+"private": true,
+
+"scripts": {
+
+"dev": "vercel dev"
+
+},
+
+"dependencies": {
+
+"@notionhq/client": "^2.2.14"
+
+}
+
+}

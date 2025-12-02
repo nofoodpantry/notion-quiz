@@ -1,0 +1,375 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Notion Quiz</title>
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<style>
+
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+
+.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fff; }
+
+.controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+button { padding: 8px 12px; cursor: pointer; }
+
+.muted { color: #666; font-size: 0.9em; }
+
+.answer { margin-top: 6px; }
+
+.correct { color: #116611; }
+
+.wrong { color: #aa2222; }
+
+.hidden { display: none; }
+
+.options label { display: block; margin: 4px 0; }
+
+.badge { display: inline-block; background: #f3f3f3; border: 1px solid #ddd; padding: 2px 6px; border-radius: 999px; margin-left: 6px; font-size: 12px; }
+
+.checks { display: grid; grid-template-columns: repeat(4, minmax(80px, 1fr)); gap: 6px 12px; }
+
+.checks label { white-space: nowrap; }
+
+@media (max-width: 520px) {
+
+.checks { grid-template-columns: repeat(2, minmax(80px, 1fr)); }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Quiz</h1>
+
+<div class="card">
+
+<div class="controls">
+
+<div>
+
+<strong>Lectures:</strong>
+
+<div class="checks">
+
+<label><input type="checkbox" class="lecture" value="L1" checked> L1</label>
+
+<label><input type="checkbox" class="lecture" value="L2" checked> L2</label>
+
+<label><input type="checkbox" class="lecture" value="L3" checked> L3</label>
+
+<label><input type="checkbox" class="lecture" value="L4" checked> L4</label>
+
+<label><input type="checkbox" class="lecture" value="L5" checked> L5</label>
+
+<label><input type="checkbox" class="lecture" value="L6" checked> L6</label>
+
+<label><input type="checkbox" class="lecture" value="L7" checked> L7</label>
+
+<label><input type="checkbox" class="lecture" value="L8" checked> L8</label>
+
+</div>
+
+</div>
+
+<div>
+
+<label>Count
+
+<input id="count" type="number" min="1" max="50" value="20" style="width: 64px">
+
+</label>
+
+</div>
+
+<button id="start" type="button">Start quiz</button>
+
+</div>
+
+<div class="muted">Randomly picks the specified number from your Quiz database.</div>
+
+</div>
+
+<form id="quiz"></form>
+
+<div id="results" class="card hidden">
+
+<h3>Results</h3>
+
+<div id="scoreline"></div>
+
+<div id="answers"></div>
+
+</div>
+
+<script>
+
+function getSelectedLectures() {
+
+return Array.from(document.querySelectorAll(".lecture"))
+
+.filter(c => c.checked)
+
+.map(c => c.value); // ["L1","L2",...]
+
+}
+
+function renderQuestion(q, idx) {
+
+const wrap = document.createElement("div");
+
+wrap.className = "card";
+
+const header = document.createElement("div");
+
+header.innerHTML = `<strong>Q${idx+1}.</strong> ${q.question || ""} <span class="badge">${q.type || ""}</span>`;
+
+wrap.appendChild(header);
+
+const inputName = `q_${idx}`;
+
+if ((q.type || "").toLowerCase().includes("mcq")) {
+
+const options = q.options || [];
+
+const list = document.createElement("div");
+
+list.className = "options";
+
+options.forEach((opt, i) => {
+
+const letter = String.fromCharCode(65 + i);
+
+const id = `${inputName}_${letter}`;
+
+const label = document.createElement("label");
+
+label.htmlFor = id;
+
+label.innerHTML = `<input type="radio" name="${inputName}" id="${id}" value="${letter}"> ${letter}. ${opt}`;
+
+list.appendChild(label);
+
+});
+
+wrap.appendChild(list);
+
+} else {
+
+const input = document.createElement("input");
+
+input.type = "text";
+
+[input.name](http://input.name) = inputName;
+
+input.placeholder = "Your answer";
+
+[input.style](http://input.style).width = "100%";
+
+input.autocomplete = "off";
+
+wrap.appendChild(input);
+
+const hint = document.createElement("div");
+
+hint.className = "muted";
+
+hint.textContent = "Short answer. Any one acceptable answer is counted correct.";
+
+wrap.appendChild(hint);
+
+}
+
+const meta = document.createElement("div");
+
+meta.className = "hidden";
+
+[meta.dataset.id](http://meta.dataset.id) = [q.id](http://q.id);
+
+meta.dataset.type = q.type || "";
+
+meta.dataset.correct = q.correct || "";
+
+meta.dataset.options = (q.options || []).join("||");
+
+wrap.appendChild(meta);
+
+return wrap;
+
+}
+
+document.getElementById("start").addEventListener("click", async () => {
+
+const status = document.getElementById("status");
+
+const form = document.getElementById("quiz");
+
+const resultsDiv = document.getElementById("results");
+
+const answersDiv = document.getElementById("answers");
+
+resultsDiv.classList.add("hidden");
+
+answersDiv.innerHTML = "";
+
+status.textContent = "Loading…";
+
+const selectedLectures = getSelectedLectures(); // ["L1","L2"]
+
+const count = Math.max(1, Math.min(parseInt(document.getElementById("count").value || "20", 10), 50));
+
+try {
+
+const params = new URLSearchParams();
+
+params.set("count", count);
+
+params.set("lectureTitles", selectedLectures.join(","));
+
+const res = await fetch(`/api/get-questions?${params.toString()}`);
+
+if (!res.ok) {
+
+const msg = await res.text().catch(() => "");
+
+throw new Error(`Failed to fetch questions. ${msg}`);
+
+}
+
+const data = await res.json();
+
+form.innerHTML = "";
+
+if (!data.items || !data.items.length) {
+
+form.innerHTML = `<div class="muted">No questions found for the selected lectures.</div>`;
+
+status.textContent = "";
+
+return;
+
+}
+
+data.items.forEach((q, idx) => form.appendChild(renderQuestion(q, idx)));
+
+const submit = document.createElement("button");
+
+submit.type = "button";
+
+submit.textContent = "Submit answers";
+
+submit.addEventListener("click", async () => {
+
+const payload = [];
+
+const cards = Array.from(document.querySelectorAll("#quiz .card"));
+
+cards.forEach((card, idx) => {
+
+const meta = card.querySelector("div.hidden");
+
+const id = [meta.dataset.id](http://meta.dataset.id);
+
+const type = meta.dataset.type;
+
+const correct = meta.dataset.correct;
+
+const options = (meta.dataset.options || "").split("||").filter(Boolean);
+
+const name = `q_${idx}`;
+
+let ua = "";
+
+if ((type || "").toLowerCase().includes("mcq")) {
+
+const chosen = document.querySelector(`input[name="${name}"]:checked`);
+
+ua = chosen ? chosen.value : "";
+
+} else {
+
+const input = document.querySelector(`input[name="${name}"]`);
+
+ua = input ? input.value : "";
+
+}
+
+payload.push({ id, type, correct, userAnswer: ua, options });
+
+});
+
+const scoreRes = await fetch("/api/score-quiz", {
+
+method: "POST",
+
+headers: { "Content-Type": "application/json" },
+
+body: JSON.stringify({ items: payload })
+
+});
+
+if (!scoreRes.ok) {
+
+const msg = await scoreRes.text().catch(() => "");
+
+alert(`Scoring failed. ${msg}`);
+
+return;
+
+}
+
+const result = await scoreRes.json();
+
+resultsDiv.classList.remove("hidden");
+
+document.getElementById("scoreline").textContent = `Score: ${result.score} / ${[result.total](http://result.total)}`;
+
+answersDiv.innerHTML = "";
+
+result.details.forEach((d, i) => {
+
+const line = document.createElement("div");
+
+line.className = "answer";
+
+line.innerHTML = `Q${i+1}: <span class="${d.isCorrect ? "correct" : "wrong"}">${d.isCorrect ? "Correct" : "Wrong"}</span> — Correct answer: ${d.correctAnswer || "(none)"}`;
+
+answersDiv.appendChild(line);
+
+});
+
+window.scrollTo({ top: resultsDiv.offsetTop - 12, behavior: "smooth" });
+
+});
+
+form.appendChild(submit);
+
+} catch (err) {
+
+console.error(err);
+
+alert(err.message || "Failed to fetch questions.");
+
+} finally {
+
+status.textContent = "";
+
+}
+
+});
+
+</script>
+
+</body>
+
+</html>
